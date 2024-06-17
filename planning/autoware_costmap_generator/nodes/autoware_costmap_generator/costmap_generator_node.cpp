@@ -314,7 +314,8 @@ void CostmapGenerator::onTimer()
   grid_map::Position p;
   p.x() = tf.transform.translation.x;
   p.y() = tf.transform.translation.y;
-  costmap_.setPosition(p);
+  // costmap_.setPosition(p);
+  costmap_.move(p);
 
   if ((use_wayarea_ || use_parkinglot_) && lanelet_map_) {
     costmap_[LayerName::primitives] = generatePrimitivesCostmap();
