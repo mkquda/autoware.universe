@@ -196,18 +196,9 @@ CostmapGenerator::CostmapGenerator(const rclcpp::NodeOptions & node_options)
     rclcpp::sleep_for(std::chrono::milliseconds(5000));
   }
 
-  // Subscribers
-  using std::placeholders::_1;
-  sub_objects_ = this->create_subscription<autoware_perception_msgs::msg::PredictedObjects>(
-    "~/input/objects", 1, std::bind(&CostmapGenerator::onObjects, this, _1));
-  sub_points_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-    "~/input/points_no_ground", rclcpp::SensorDataQoS(),
-    std::bind(&CostmapGenerator::onPoints, this, _1));
   sub_lanelet_bin_map_ = this->create_subscription<autoware_map_msgs::msg::LaneletMapBin>(
     "~/input/vector_map", rclcpp::QoS{1}.transient_local(),
-    std::bind(&CostmapGenerator::onLaneletMapBin, this, _1));
-  sub_scenario_ = this->create_subscription<tier4_planning_msgs::msg::Scenario>(
-    "~/input/scenario", 1, std::bind(&CostmapGenerator::onScenario, this, _1));
+    std::bind(&CostmapGenerator::onLaneletMapBin, this, std::placeholders::_1));
 
   // Publishers
   pub_costmap_ = this->create_publisher<grid_map_msgs::msg::GridMap>("~/output/grid_map", 1);
@@ -279,20 +270,26 @@ void CostmapGenerator::onLaneletMapBin(
   }
 }
 
-void CostmapGenerator::onObjects(
-  const autoware_perception_msgs::msg::PredictedObjects::ConstSharedPtr msg)
+void CostmapGenerator::processData()
 {
-  objects_ = msg;
-}
+  const auto & getData = [](auto & dest, auto & sub) {
+    const auto temp = sub.takeData();
+    if (temp) {
+      dest = temp;
+      return true;
+    }
+    return false;
+  };
 
-void CostmapGenerator::onPoints(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg)
-{
-  points_ = msg;
-}
-
-void CostmapGenerator::onScenario(const tier4_planning_msgs::msg::Scenario::ConstSharedPtr msg)
-{
-  scenario_ = msg;
+  if (!getData(objects_, sub_objects_)){
+    RCLCPP_DEBUG(this->get_logger(), "Predicted objects data is not available");
+  }
+  if (!getData(points_, sub_points_)){
+    RCLCPP_DEBUG(this->get_logger(), "Point cloud data is not available");
+  }
+  if (!getData(scenario_, sub_scenario_)){
+    RCLCPP_DEBUG(this->get_logger(), "Scenario information is not available");
+  }
 }
 
 void CostmapGenerator::onTimer()
@@ -310,6 +307,8 @@ void CostmapGenerator::onTimer()
     RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
     return;
   }
+
+  processData();
 
   // Set grid center
   grid_map::Position p;

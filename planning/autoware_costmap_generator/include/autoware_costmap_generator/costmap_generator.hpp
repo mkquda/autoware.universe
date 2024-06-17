@@ -55,6 +55,7 @@
 
 #include <autoware_map_msgs/msg/lanelet_map_bin.hpp>
 #include <autoware_perception_msgs/msg/predicted_objects.hpp>
+#include <tier4_autoware_utils/ros/polling_subscriber.hpp>
 #include <tier4_planning_msgs/msg/scenario.hpp>
 
 #include <grid_map_msgs/msg/grid_map.h>
@@ -112,13 +113,18 @@ private:
 
   grid_map::GridMap costmap_;
 
+  // Publishers
   rclcpp::Publisher<grid_map_msgs::msg::GridMap>::SharedPtr pub_costmap_;
   rclcpp::Publisher<nav_msgs::msg::OccupancyGrid>::SharedPtr pub_occupancy_grid_;
 
-  rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr sub_points_;
-  rclcpp::Subscription<autoware_perception_msgs::msg::PredictedObjects>::SharedPtr sub_objects_;
+  // Subscribers
+  tier4_autoware_utils::InterProcessPollingSubscriber<sensor_msgs::msg::PointCloud2> sub_points_{
+    this, "~/input/pointcloud", tier4_autoware_utils::SingleDepthSensorQoS()};
+  tier4_autoware_utils::InterProcessPollingSubscriber<autoware_perception_msgs::msg::PredictedObjects> sub_objects_{
+    this, "~/input/objects"};
+  tier4_autoware_utils::InterProcessPollingSubscriber<tier4_planning_msgs::msg::Scenario> sub_scenario_{
+    this, "~/input/scenario"};
   rclcpp::Subscription<autoware_map_msgs::msg::LaneletMapBin>::SharedPtr sub_lanelet_bin_map_;
-  rclcpp::Subscription<tier4_planning_msgs::msg::Scenario>::SharedPtr sub_scenario_;
 
   rclcpp::TimerBase::SharedPtr timer_;
 
@@ -140,23 +146,10 @@ private:
     static constexpr const char * combined = "combined";
   };
 
-  /// \brief wait for lanelet2 map to load and build routing graph
-  void initLaneletMap();
-
   /// \brief callback for loading lanelet2 map
   void onLaneletMapBin(const autoware_map_msgs::msg::LaneletMapBin::ConstSharedPtr msg);
 
-  /// \brief callback for DynamicObjectArray
-  /// \param[in] in_objects input DynamicObjectArray usually from prediction or perception
-  /// component
-  void onObjects(const autoware_perception_msgs::msg::PredictedObjects::ConstSharedPtr msg);
-
-  /// \brief callback for sensor_msgs::PointCloud2
-  /// \param[in] in_points input sensor_msgs::PointCloud2. Assuming ground-filtered pointcloud
-  /// by default
-  void onPoints(const sensor_msgs::msg::PointCloud2::ConstSharedPtr msg);
-
-  void onScenario(const tier4_planning_msgs::msg::Scenario::ConstSharedPtr msg);
+  void processData();
 
   void onTimer();
 
