@@ -15,12 +15,12 @@
 #ifndef AUTOWARE_TEST_UTILS__AUTOWARE_TEST_UTILS_HPP_
 #define AUTOWARE_TEST_UTILS__AUTOWARE_TEST_UTILS_HPP_
 
+#include <autoware/universe_utils/geometry/geometry.hpp>
 #include <component_interface_specs/planning.hpp>
 #include <lanelet2_extension/io/autoware_osm_parser.hpp>
 #include <lanelet2_extension/projection/mgrs_projector.hpp>
 #include <lanelet2_extension/utility/message_conversion.hpp>
 #include <lanelet2_extension/utility/utilities.hpp>
-#include <tier4_autoware_utils/geometry/geometry.hpp>
 
 #include <autoware_adapi_v1_msgs/msg/operation_mode_state.hpp>
 #include <autoware_map_msgs/msg/lanelet_map_bin.hpp>
@@ -48,6 +48,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace autoware::test_utils
@@ -62,6 +63,8 @@ using autoware_planning_msgs::msg::Trajectory;
 using tier4_planning_msgs::msg::PathPointWithLaneId;
 using tier4_planning_msgs::msg::PathWithLaneId;
 using RouteSections = std::vector<autoware_planning_msgs::msg::LaneletSegment>;
+using autoware::universe_utils::createPoint;
+using autoware::universe_utils::createQuaternionFromRPY;
 using geometry_msgs::msg::Point;
 using geometry_msgs::msg::Pose;
 using geometry_msgs::msg::PoseStamped;
@@ -70,8 +73,6 @@ using nav_msgs::msg::OccupancyGrid;
 using nav_msgs::msg::Odometry;
 using sensor_msgs::msg::PointCloud2;
 using tf2_msgs::msg::TFMessage;
-using tier4_autoware_utils::createPoint;
-using tier4_autoware_utils::createQuaternionFromRPY;
 using tier4_planning_msgs::msg::Scenario;
 using unique_identifier_msgs::msg::UUID;
 
@@ -511,6 +512,62 @@ void publishToTargetNode(
   }
   autoware::test_utils::spinSomeNodes(test_node, target_node, repeat_count);
 }
+
+/**
+ * @brief Manages publishing and subscribing to ROS topics for testing Autoware.
+ *
+ * The AutowareTestManager class provides utility functions to facilitate
+ * the publishing of messages to specified topics and the setting up of
+ * subscribers to listen for messages on specified topics. This class
+ * simplifies the setup of test environments in Autoware.
+ */
+class AutowareTestManager
+{
+public:
+  AutowareTestManager()
+  {
+    test_node_ = std::make_shared<rclcpp::Node>("autoware_test_manager_node");
+  }
+
+  template <typename MessageType>
+  void test_pub_msg(
+    rclcpp::Node::SharedPtr target_node, const std::string & topic_name, MessageType & msg)
+  {
+    if (publishers_.find(topic_name) == publishers_.end()) {
+      auto publisher = test_node_->create_publisher<MessageType>(topic_name, 10);
+      publishers_[topic_name] = std::static_pointer_cast<rclcpp::PublisherBase>(publisher);
+    }
+
+    auto publisher =
+      std::dynamic_pointer_cast<rclcpp::Publisher<MessageType>>(publishers_[topic_name]);
+
+    autoware::test_utils::publishToTargetNode(test_node_, target_node, topic_name, publisher, msg);
+    RCLCPP_INFO(test_node_->get_logger(), "Published message on topic '%s'", topic_name.c_str());
+  }
+
+  template <typename MessageType>
+  void set_subscriber(
+    const std::string & topic_name,
+    std::function<void(const typename MessageType::ConstSharedPtr)> callback)
+  {
+    if (subscribers_.find(topic_name) == subscribers_.end()) {
+      std::shared_ptr<rclcpp::Subscription<MessageType>> subscriber;
+      autoware::test_utils::createSubscription<MessageType>(
+        test_node_, topic_name, callback, subscriber);
+      subscribers_[topic_name] = std::static_pointer_cast<rclcpp::SubscriptionBase>(subscriber);
+    } else {
+      RCLCPP_WARN(test_node_->get_logger(), "Subscriber %s already set.", topic_name.c_str());
+    }
+  }
+
+protected:
+  // Publisher
+  std::unordered_map<std::string, std::shared_ptr<rclcpp::PublisherBase>> publishers_;
+  std::unordered_map<std::string, std::shared_ptr<rclcpp::SubscriptionBase>> subscribers_;
+
+  // Node
+  rclcpp::Node::SharedPtr test_node_;
+};  // class AutowareTestManager
 
 }  // namespace autoware::test_utils
 
