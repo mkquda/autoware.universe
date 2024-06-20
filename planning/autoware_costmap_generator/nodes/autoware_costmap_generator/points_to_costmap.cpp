@@ -88,46 +88,26 @@ grid_map::Index PointsToCostmap::fetchGridIndexFromPoint(const pcl::PointXYZ & p
   return index;
 }
 
-std::vector<std::vector<std::vector<double>>> PointsToCostmap::assignPoints2GridCell(
-  const pcl::PointCloud<pcl::PointXYZ> & in_sensor_points)
-{
-  double y_cell_size = std::ceil(grid_length_y_ * (1 / grid_resolution_));
-  double x_cell_size = std::ceil(grid_length_x_ * (1 / grid_resolution_));
-  std::vector<double> z_vec;
-  std::vector<std::vector<double>> vec_y_z(y_cell_size, z_vec);
-  std::vector<std::vector<std::vector<double>>> vec_x_y_z(x_cell_size, vec_y_z);
-
-  for (const auto & point : in_sensor_points) {
-    grid_map::Index grid_ind = fetchGridIndexFromPoint(point);
-    if (isValidInd(grid_ind)) {
-      vec_x_y_z[grid_ind.x()][grid_ind.y()].push_back(point.z);
-    }
-  }
-  return vec_x_y_z;
-}
-
 grid_map::Matrix PointsToCostmap::calculateCostmap(
   const double maximum_height_thres, const double minimum_lidar_height_thres,
   const double grid_min_value, const double grid_max_value, const grid_map::GridMap & gridmap,
   const std::string & gridmap_layer_name,
-  const std::vector<std::vector<std::vector<double>>> grid_vec)
+  const pcl::PointCloud<pcl::PointXYZ> & in_sensor_points)
 {
   grid_map::Matrix gridmap_data = gridmap[gridmap_layer_name];
-  for (size_t x_ind = 0; x_ind < grid_vec.size(); x_ind++) {
-    for (size_t y_ind = 0; y_ind < grid_vec[0].size(); y_ind++) {
-      if (grid_vec[x_ind][y_ind].size() == 0) {
-        gridmap_data(x_ind, y_ind) = grid_min_value;
-        continue;
-      }
-      for (const auto & z : grid_vec[x_ind][y_ind]) {
-        if (z > maximum_height_thres || z < minimum_lidar_height_thres) {
-          continue;
-        }
-        gridmap_data(x_ind, y_ind) = grid_max_value;
-        break;
-      }
+
+  for (int x_ind = 0; x_ind < gridmap.getSize()[0]; x_ind++)
+    for (int y_ind = 0; y_ind < gridmap.getSize()[1]; y_ind++)
+      gridmap_data(x_ind, y_ind) = grid_min_value;
+
+  for (const auto & point : in_sensor_points) {
+    if (point.z > maximum_height_thres || point.z < minimum_lidar_height_thres) continue;
+    grid_map::Index grid_ind = fetchGridIndexFromPoint(point);
+    if (isValidInd(grid_ind)) {
+      gridmap_data(grid_ind[0], grid_ind[1]) = grid_max_value;
     }
   }
+
   return gridmap_data;
 }
 
@@ -137,10 +117,9 @@ grid_map::Matrix PointsToCostmap::makeCostmapFromPoints(
   const std::string & gridmap_layer_name, const pcl::PointCloud<pcl::PointXYZ> & in_sensor_points)
 {
   initGridmapParam(gridmap);
-  std::vector<std::vector<std::vector<double>>> grid_vec = assignPoints2GridCell(in_sensor_points);
   grid_map::Matrix costmap = calculateCostmap(
     maximum_height_thres, minimum_lidar_height_thres, grid_min_value, grid_max_value, gridmap,
-    gridmap_layer_name, grid_vec);
+    gridmap_layer_name, in_sensor_points);
   return costmap;
 }
 

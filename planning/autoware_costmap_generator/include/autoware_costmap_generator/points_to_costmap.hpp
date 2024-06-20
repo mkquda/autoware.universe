@@ -96,13 +96,6 @@ private:
   /// \param[out] index in gridmap
   grid_map::Index fetchGridIndexFromPoint(const pcl::PointXYZ & point);
 
-  /// \brief Assign pointcloud to appropriate cell in gridmap
-  /// \param[in] in_sensor_points: subscribed pointcloud
-  /// \param[out] grid-x-length x grid-y-length size grid stuffed with point's height in
-  /// corresponding grid cell
-  std::vector<std::vector<std::vector<double>>> assignPoints2GridCell(
-    const pcl::PointCloud<pcl::PointXYZ> & in_sensor_points);
-
   /// \brief calculate costmap from subscribed pointcloud
   /// \param[in] maximum_height_thres: Maximum height threshold for pointcloud data
   /// \param[in] minimum_height_thres: Minimum height threshold for pointcloud data
@@ -116,7 +109,7 @@ private:
     const double maximum_height_thres, const double minimum_lidar_height_thres,
     const double grid_min_value, const double grid_max_value, const grid_map::GridMap & gridmap,
     const std::string & gridmap_layer_name,
-    const std::vector<std::vector<std::vector<double>>> grid_vec);
+    const pcl::PointCloud<pcl::PointXYZ> & in_sensor_points);
 };
 }  // namespace autoware::costmap_generator
 
