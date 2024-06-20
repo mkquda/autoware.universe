@@ -180,8 +180,8 @@ grid_map::Matrix ObjectsToCostmap::makeCostmapFromObjects(
       [](const auto & c1, const auto & c2) { return c1.probability < c2.probability; });
     const double highest_probability = static_cast<double>(highest_probability_label.probability);
     setCostInPolygon(polygon, OBJECTS_COSTMAP_LAYER_, highest_probability, objects_costmap);
-    setCostInPolygon(polygon, BLURRED_OBJECTS_COSTMAP_LAYER_, highest_probability, objects_costmap);
   }
+  objects_costmap[BLURRED_OBJECTS_COSTMAP_LAYER_] = objects_costmap[OBJECTS_COSTMAP_LAYER_];
 
   // Applying mean filter to expanded gridmap
   const grid_map::SlidingWindowIterator::EdgeHandling edge_handling =
